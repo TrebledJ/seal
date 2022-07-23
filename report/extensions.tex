@@ -1,0 +1,23 @@
+Amidst the 250-plus test cases, the implementation of the \text{SEAL} interpreter provided is very much likely riddled with horrendous bugs and diseases. If the reader comes across an unintelligible error message, do not be astonished! The error messages and source positioning may be wonky.
+
+Had the author more time, he would extend \text{SEAL} with the following extensions:
+\begin{itemize}
+    \item Implicit conversions (or type-casting): because nobody likes to write \code{Std.intToString} everytime you want to want to concatenate something to print to output.
+    % \item String interpolation: same reason as above.
+    \item Import machinery (or cross-module name analysis): because nobody likes to run their code, get a "Oh \code{L.List} doesn't exist", and modify the command arguments to compile \code{List.scala} \textit{every single time}!
+    \item Generics/templates: because nobody likes to implement ten different \code{List}s, \code{map}, and \code{compose} methods with the exact same function bodies.
+\end{itemize}
+
+\noindent
+The resulting extensions of \textit{SEAL} is foretold to lead to the creation of \textit{MEAL}, More Extensions for the Amy Language, or \textit{MEASLes}, More Extensions for the Amy and \textit{SEAL} Languages.
+
+With desirable extensions out of the way, it is time to address the elephant in the room. \textit{SEAL} can very much improve with code generation\footnotemark and optimisation. The interpreter, though easy to work with, provides a limited environment for memory management. One of the examples, \texttt{extension-examples/ AOC2021D01.scala} contains a function (\code{part2}) that crashes the program due to a stack overflow on a large input set. With code gen and optimisation this problem could hopefully be solved.
+\footnotetext{{To be frank, the author has not given much thought about codegen.}}
+
+One optimisation that may help here is tail call optimisation, where the result value is passed along as a function parameter and returned in the base case. Tail call optimisation helps reduce stack usage by reusing the current stack frame for storing return value \cite{TCO}.
+
+Another difficulty encountered was desugaring and substituting expressions (e.g. for implicit conversions). The current structure and flow of the program does not make this trivial. Desugaring appears to be a different stage in the pipeline all together, following name analysis but before type checking \cite{Desugar}.\footnote{For desugaring lambdas, it makes sense for name analysis to come first, since lambdas need to deal with closures and scoping. But with simpler syntactic sugar (e.g. \code{enum}-\code{case} ADTs), it may be better to desugar it early on to avoid repetitive code in later stages.}
+
+So far, we've managed to avoid desugaring of lambdas by directly interpreting its expression. However, it may be useful to be able lift the lambda as a function in order to avoid repetitive code for both functions definitions and lambdas.\footnote{Another issue with lambda lifting is that more serious name analysis would be needed to find free variables in order to create a minimal environment.}
+
+With any luck, perhaps \textit{MEAL} or \textit{MEASLes} will successfully deal with all these issues and include codegen and optimisations.

@@ -1,0 +1,8 @@
+IntLitToken(0)(1:1)
+OperatorToken(-)(2:1)
+IntLitToken(1)(2:2)
+IntLitToken(123)(3:1)
+IntLitToken(2147483647)(4:1)
+OperatorToken(-)(5:1)
+IntLitToken(2147483647)(5:2)
+EOFToken()(5:12)

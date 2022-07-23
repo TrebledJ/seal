@@ -1,0 +1,3 @@
+apples 5 10
+bananas 8 6
+oranges 6 8

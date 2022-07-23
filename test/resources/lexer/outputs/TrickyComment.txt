@@ -1,0 +1,5 @@
+IdentifierToken(a)(1:5)
+IdentifierToken(b)(1:12)
+IdentifierToken(c)(1:18)
+IdentifierToken(d)(1:31)
+EOFToken()(1:32)

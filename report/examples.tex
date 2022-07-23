@@ -1,0 +1,123 @@
+\subsection{Tuples}
+
+\begin{lstlisting}
+object Tuples {
+  def foo(v: (Int, Boolean)): (Int, Boolean) = { // Type.
+      v match {
+          case (i, false) $\Arr$ // Pattern matching.
+              (i, false) // Literal.
+          case (i, true) $\Arr$
+              (-i, false)
+      }
+  }
+
+  val a: (Int, Boolean) = foo((1, true));
+  val b: (Int, Boolean) = foo((-2, false));
+  val a0: Int = a(0); // Variable access.
+
+  Std.printString("a: (" 
+    ++ Std.intToString(a0) ++ ", " 
+    ++ Std.booleanToString(a(1)) 
+    ++ ")"); // a: (-1, false)
+  
+  // Error: only int literals allowed as tuple accessors.
+  // val a1: Int = a(0 + 1); 
+
+  // Error: can't access index out of range.
+  // val a1: Int = a(2); 
+  
+  val c: String = ("hello", "there")(0); // Literal access.
+  Std.printString(c)
+}
+\end{lstlisting}
+See \texttt{extension-examples/Tuples.scala} for a fuller demonstration.
+
+There are three primary tuple operations:
+
+\begin{enumerate}
+  \item Construction: \code{(x, y)}
+  \item Access: \code{t(i)} (for integer literal \code{i})
+  \item Pattern matching: \\
+    \code{t match \{ case (x, y) $\Arr$ ... \}}
+\end{enumerate}
+
+\noindent
+Tuples were introduced both on the value level and on the type level, and have the usual one-to-one correspondence between a field's type and value. For example, \code{("a", 1)} has type \code{(String, Int)}.
+
+Further semantic rules are as follows:
+
+\begin{itemize}
+  \item Tuples may hold an unlimited number of fields (within hardware limits).
+  \item Tuple access is similar to calls, but there must only be one argument and it must be an integer literal. This is checked statically.
+  \item Tuples in \textit{SEAL} are heterogenous, as is usual in most programming languages.
+\end{itemize}
+
+\subsection{Higher Order Functions}
+
+\begin{lstlisting}
+object HigherOrderFunctions {
+  def map(f: Int $\Arr$ Int, xs: L.List): L.List = {
+      xs match {
+          case L.Nil() $\Arr$ L.Nil()
+          case L.Cons(h, t) $\Arr$ L.Cons(f(h), map(f, t))
+      }
+  }
+  
+  def add(a: Int): Int $\Arr$ Int = {
+      \(b: Int) $\arr$ a + b
+  }
+  
+  val i: Int = 2;
+  val xs0: L.List =
+    L.Cons(1, L.Cons(2, L.Cons(3, L.Nil())));
+  val xs1: L.List = map(\(x: Int) $\arr$ x + 1, xs0);
+  val xs2: L.List = map(add(10), xs0);
+  Std.printString(L.toString(xs1)); // List(2, 3, 4).
+  Std.printString(L.toString(xs2)); // List(11, 12, 13).
+
+  // \(x: Int) $\arr$ val y: Int = 1; x + y; // Error.
+  \(x: Int) $\arr$ (val y: Int = 1; x + y); // OK.
+
+  (\(x: Int): Int $\arr$ x + 1)(1); // Return type optional.
+
+  val f: Int $\Arr$ Int $\Arr$ Int = add;
+  Std.printInt(add(40)(2)); // Currying.
+}
+\end{lstlisting}
+See \texttt{extension-examples/HigherOrder\\Functions.scala} for a fuller demonstration.
+
+Functions are now supreme beings and have earned their rightful place as first-class citizens. The following features are included in the extension:
+
+\begin{itemize}
+  \item Function types: \code{A $\Arr$ B}
+  \item Lambdas (anonymous functions): \\
+    \code{\bs(x: Int) $\arr$ x + 1}
+  \item Currying: \code{f(x)(y)}
+\end{itemize}
+
+\noindent
+The syntax and semantics are as follows:
+
+\begin{enumerate}[label=(\alph*)]
+  \item Function types
+  \begin{enumerate}[label=(\roman*)]
+    \item Multiple parameters are specified as tuples, e.g. \code{(Int, Boolean, String) $\Arr$ Unit} represents a function of three arguments mapping to \code{Unit}.
+    \item The type \code{()} is a synonym for \code{Unit}, e.g. \code{() $\Arr$ ()} and \code{Unit $\Arr$ Unit} are the same type.
+    \item Similar to Scala, \code{((A, B)) $\Arr$ C} represents a function of one argument (here, a 2-tuple) mapping to \code{C}. This is to avoid confusion with \code{(A, B) $\Arr$ C}, which represents a function of \textit{two} arguments of type \code{A}, \code{B}, mapping to \code{C}.
+
+    Note that the extra parentheses here is for the special case of functions with one tuple argument. For any other type of argument, the parentheses are superfluous (e.g. \code{(Int) $\Arr$ String} is the same as \code{Int $\Arr$ String}).
+    \item Unlike Scala, it is invalid to cast a function from \code{(A1, $\dots$, An) $\Arr$ B} to \code{((A1, $\dots$, An)) $\Arr$ B} (i.e. from a function of $n$ arguments to a function of one $n$-tuple argument).
+    \item Also unlike Scala, it is invalid to call \code{f(a1, $\dots$, an)} where \code{f} has type \code{((A1, $\dots$, An)) $\Arr$ B} and \code{ai} has type \code{Ai}. In other words, parameters won't be auto-squished into a tuple.
+  \end{enumerate}
+  \item Lambdas
+  \begin{enumerate}[label=(\roman*)]
+    \item Any free variables in a lambda (i.e. variables that reference names outside the lambda) are captured when the lambda is instantiated. Due to the immutable nature of Amy/\textit{SEAL}, variables are captured by value, so that there is no cause for alarm about dangling references.
+    \item The return type of lambdas can be optionally specified: \code{\bs(x: Int): Int $\arr$ x + 1}. If no return type is specified for a lambda, it will be automatically deduced.
+    \item The body of a lambda is not allowed to begin with a let-expression. Should there be a need for declaring local variables within a lambda, use a subexpression.
+  \end{enumerate}
+  \item Calls and currying
+  \begin{enumerate}[label=(\roman*)]
+    \item Any number of calls may follow a valid identifier or parenthesised value.
+    \item Calls in \textit{SEAL} and Amy have the same precedence.
+  \end{enumerate}
+\end{enumerate}

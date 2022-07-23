@@ -1,0 +1,8 @@
+Numbers: 1721 299.
+Answer: 514579
+Numbers: 1436 584.
+Answer: 838624
+Numbers: 979 366 675
+Answer: 241861950
+Numbers: 245 131 1644
+Answer: 52764180

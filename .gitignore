@@ -1,0 +1,12 @@
+package.json
+package-lock.json
+node_modules/*
+target/*
+wasmout/*
+build/
+.vscode/
+.metals/
+.bsp/
+.bloop/
+project/
+target/

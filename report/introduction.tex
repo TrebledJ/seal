@@ -1,0 +1,5 @@
+\textit{SEAL} extends the Amy language by adding support for tuples and higher order functions. 
+
+These extensions build upon a compiler of a previously implemented (vanilla) Amy language. The compiler is broken down into multiple stages: lexing, parsing, name analysis, type checking, and finally interpretation or WebAssembly code generation. The \textit{SEAL} extensions is focused on interpretation.\footnote{The author has decided to throw code generation and optimisations for extensions out the window mainly because his code generation for the vanilla Amy language wasn't complete (darn you match expressions!). }
+
+The Amy language lacks the expressiveness found in most modern programming languages such as Python, C++, and Scala. These languages generally have tuples and higher order functions, allowing for product types to be namelessly typed and constructed, and for functions to be treated as first-class citizens and used as expressions, allowing us to program functionally with the typical \texttt{map} and function composition operations.

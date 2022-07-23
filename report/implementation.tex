@@ -1,0 +1,290 @@
+How does all this work? It all begins with an idea...
+
+\subsection{Theoretical Background}
+Since the author has decided to throw code generation and optimisation out the window, there are few theoretical concepts involved.
+
+However, one noteworthy concept is of closure conversions. The primary challenge with implementing lambdas is deciding how to deal with free variables (i.e. variables in the lambda expression that are scoped outside).
+
+
+\subsubsection{Closure Conversion}\label{sec:closure-convert}
+Take this simple program:
+\begin{lstlisting}
+object Foo {
+  def foo(): Int $\Arr$ Int = {
+    val i: Int = 1;
+    val res: Int $\Arr$ Int = \(x: Int) $\arr$ x + i;
+      // Problem! How do we access i from within res?
+    res
+  }
+  foo()(42) // Should return 43.
+}
+\end{lstlisting}
+The idea of closure conversion is to add a parameter to lambda containing the environment at the point the lambda is constructed \cite{ClosureConversion}.
+\begin{lstlisting}
+def foo(): ((Env, Int) $\Arr$ Int, Env) = {
+  val i: Int = 1;
+  val res: ((Env, Int) $\Arr$ Int, Env)
+    = (\(env: Env, x: Int) $\arr$ x + env(i),
+       Env(i $\arr$ 1));
+  res
+}
+\end{lstlisting}
+Imagine \code{Env} as a map from an identifier to a value and that \code{env(i)} accesses the value of identifier \code{i}.
+
+\code{res} is now a closure: a pair containing the modified lambda procedure (\code{(Env, Int) $\Arr$ Int}) along with the captured environment (\code{Env}).
+\begin{lstlisting}
+def foo(): ((Env, Int) $\Arr$ Int, Env) = {
+  val i: Int = 1;
+  val res: ((Env, Int) $\Arr$ Int, Env)
+    = (\(env: Env, x: Int) $\arr$ x + env(i),
+       Env(i $\arr$ 1)); // Create closure.
+  res
+}
+\end{lstlisting}
+Now we can lift the lambda up to a function (not done in \textit{SEAL}).
+\begin{lstlisting}
+def lambda_0(env: Env, x: Int): Int = {
+  x + env(i)
+}
+
+def foo(): ((Env, Int) $\Arr$ Int, Env) = {
+  val i: Int = 1;
+  val res: ((Env, Int) $\Arr$ Int, Env)
+    = (lambda_0, Env(i $\arr$ 1));
+  res
+}
+\end{lstlisting}
+Finally, when calling the lambda, we expand the call to apply the environment as well. \code{foo()(42)} gets translated to:
+\begin{lstlisting}
+foo() match {
+  case (proc, env) $\Arr$
+    proc(env, 42)
+}
+\end{lstlisting} 
+
+
+\subsection{Implementation Details}
+\textit{SEAL} is the product of multiple refactors, rollbacks, and intensive hours of toiling.\footnotemark Below we attempt to explain a few major head-scratching dilemmas faced and why the end result was chosen. Details and sections are not necessarily presented in the order of implementation.
+\footnotetext{By the way, make sure to check out \code{extension-examples/ SealSim.scala}. You won't be disappointed.}
+
+
+\subsubsection{Tuples: Construction and Pattern Matching}
+The implementation of tuples is relatively straight-forward. We add a new expression, type, and match pattern to our tree:
+\begin{lstlisting}
+trait TreeModule { self $\Arr$
+  sealed trait Expr extends Tree
+  // ...
+  case class Tuple(values: List[Expr]) // New!
+    extends Expr
+
+enum Type:
+  case IntType
+  // ...
+  case TupleType(types: List[TypeTree]) // New!
+
+enum Pattern extends Tree:
+  case WildcardPattern()
+  // ...
+  case TuplePattern(args: List[Pattern]) // New!
+\end{lstlisting}
+\label{lst:impl-tp-1}
+Parsing and name analysis are relatively straight forward. Type checking is slightly more involved.
+
+When generating constraints for type checking, since the expected type might not be a tuple, we create type variables for each field. However, \code{TupleType} doesn't accept type variables. We'll need a proxy to represent a type tree that can contain type variables.
+
+% \newpage
+\begin{lstlisting}
+type TypeOrVar = ConcreteType // Updated!
+                 | TypeVariable
+
+
+// New:
+sealed trait ConcreteType
+case object IntCType extends ConcreteType
+// ...
+case class ClassCType(qname: QualifiedName)
+  extends ConcreteType
+case class TupleCType(xs: List[TypeOrVar]) // !
+  extends ConcreteType
+\end{lstlisting}
+After refactoring the old code to use the new proxy type, all that's left is to substitute type variables recursively in the substitution step of our unification algorithm.
+
+In the interpreter, we natively support tuples by introducing \code{TupleValue} and handle them accordingly.
+\begin{lstlisting}
+case class TupleValue(xs: List[Value]) extends Value
+\end{lstlisting}
+
+
+\subsubsection{Higher Order Functions: Typing}
+For a first attempt at introducing function types, we take a hint from the lecture notes on Type Inference\footnotemark\  and represent functions as \code{A $\Arr$ B}.
+\footnotetext{Slides 15 and 16 out of 38.}
+\begin{lstlisting}
+enum Type:
+  // ...
+  case FunctionType(args: TypeTree, // New!
+                    ret: TypeTree)
+\end{lstlisting}
+Here functions of more than one parameter have a tuple type \code{A}. For example, \code{(Int, String) $\Arr$ Unit} is represented as
+\begin{lstlisting}
+FunctionType(
+  TypeTree(
+    TupleType(
+      List(TypeTree(IntType),
+          TypeTree(StringType))
+    )),
+  TypeTree(UnitType))
+\end{lstlisting}
+However, it becomes convoluted when dealing with functions of one tuple argument. For \code{Function(Tuple (A, B), C)}, we need to distinguish whether this is a function of one tuple argument of type \code{(A, B)}, or a function of two arguments of type \code{A}, \code{B}.
+
+To ease the implementation burden, we rewrite \code{FunctionType} so that it inherently supports multiple arguments and can unambiguously distinguish between one argument and multiple arguments.
+\begin{lstlisting}
+case FunctionType(args: List[TypeTree], ret: TypeTree)
+\end{lstlisting}
+
+
+\subsubsection{Functional Refactor for \code{Variable} and \code{Call} Expressions}\label{sec:call-refactor}
+An early consideration when implementing higher order functions is the ability to write expressive code such as:
+\begin{lstlisting}
+def foo(x: Int): Int = { x + 1 }
+val addOne: Int $\Arr$ Int
+  = foo; // Functions as first-class citizens!
+val add: Int $\Arr$ Int $\Arr$ Int
+  = (\(x: Int) $\arr$ \(y: Int) $\arr$ x + y);
+addOne(41);
+add(20)(22); // Multiple calls!
+(1, "a")(1); // Tuple access! (Parsed as a call.)
+\end{lstlisting}
+We would like to treat \code{foo} as a first-class citizen and be able to use the identifier in an expression just like any other variable or literal.
+
+We would also like to perform calls on values such as lambdas, tuples (in case of tuple access), or even arbitrary expressions: \code{(if (b) \{ add \} else \{ times \})(x, y)}.
+
+So instead of treating variables and calls separately, we treat calls as an operation that can be called on any expression. This means that the responsibility of looking up functions and constructors falls on \code{Variable}.\footnote{At this point, "variable" is probably a misnomer since it encapsulates so much more.}
+\begin{lstlisting}
+case class Variable(name: QualifiedName) extends Expr
+case class Call(expr: Expr, args: List[Expr]) extends Expr
+\end{lstlisting}
+This also allows us to chain multiple calls together for currying.
+
+In parsing, we modify the grammar so that we accept \code{many(call)} instead of just one call. We also need to take care to disallow calling the unit literal: \code{()()}.
+
+\begin{lstlisting}
+Expr4 := Error
+       | IdAndCalls
+       | BrkExprAndCalls
+       | OtherLiteral
+
+IdAndCalls := QualId Call*
+QualId := Id ['.' Id]?
+BrkExprAndCalls := '(' [ Unit | TupleOrSubExpr ]
+Unit := ')' // No calls on unit literal!
+TupleOrSubExpr := Expr [',' Expr]* ')' Call*
+Call := '(' Expr [',' Expr]* ')'
+\end{lstlisting}
+
+\noindent
+In type checking, we add a new \code{FunctionCType} which inherits from \code{ConcreteType}. Each time we encounter a \code{Call}, we generate a \code{FunctionCType} constraint indicating that the called expression is expected to have a function type. The arguments of the call are type variables (to be constrained with the actual parameters). The return type of the call is the expected type.
+\begin{lstlisting}
+case Call(expr, args) $\Arr$
+  val typeVars = args map (_ $\Arr$ TypeVariable.fresh())
+  val funcType = FunctionCType(typeVars, expected)
+  ((args zip typeVars) flatMap genConstraints)
+    ++ genConstraints(expr, funcType)
+\end{lstlisting}
+
+\noindent
+On the interpretive side, we introduce \code{FunctionValue}s to encapsulate named or nameless (c.f. §\ref{sec:lambdas}) values.
+\begin{lstlisting}
+sealed trait FunctionValue extends Value
+case class BuiltInFunctionValue(f: List[Value] $\Arr$ Value)
+  extends FunctionValue
+case class FunctionPtrValue(f: FunDef)
+  extends FunctionValue
+case class ConstructorPtrValue(qname: Identifier)
+  extends FunctionValue
+\end{lstlisting}
+We distinguish between different functions (built-ins, references, and constructors) on the type level to handle the different representations.
+
+
+\subsubsection{Tuples: Access}
+Here, the objective is to allow tuple access similar to Scala. We accomplish two things: bounds checking of the index and type checking of a particular field.
+
+To perform bounds checking, we make a language design choice to only accept integer literals. We modify \code{IntCType} so that we can store the value of the literal.\footnotemark
+\begin{lstlisting}
+sealed trait IntCType extends ConcreteType
+case object IntAnyValueType extends IntCType
+case class IntConstantType(n: Int) extends IntCType
+\end{lstlisting}
+\footnotetext{The idea is to have something akin to C++'s \code{std::get<N>} for tuple access, where \code{N} is a constant expression \code{int} (i.e. can be compile-time evaluated) so that bounds-checking could be done in compile time. For \textit{SEAL} however, we won't evaluate expressions during compilation and simply force usage of integer literals.}
+
+\noindent
+We also need to modify the constraint solver.
+As mentioned in §\ref{sec:call-refactor}, all calls expect the called expression to have function type. We need to handle the special case where the called expression is a tuple instead of a function.
+
+\begin{lstlisting}
+def solveConstraints(constraints: List[Constraint]) = {
+  constraints match {
+    case Nil $\Arr$ ()
+    case Constraint(TupleCType(ts),      // New case!
+                    FunctionCType(args, expected))
+                    ::more $\Arr$
+      if (args.length != 1)
+        error("can't call tuple with 0 or 2+ args")
+      else
+        args.head match
+          case IntConstantType(i) $\Arr$
+            if (i $\ge$ ts.length) {
+              error("out of bounds")
+            } else {
+        // Constrain i-th field with expected type.
+              solveConstraints(
+                Constraint(ts(i), expected)::more)
+            }
+          case _ $\Arr$
+            error("non-constant integer access")
+\end{lstlisting}
+
+\noindent
+Finally, in the interpreter, we handle \code{TupleValue}s in \code{Call} expressions.
+
+
+\subsubsection{Lambdas}\label{sec:lambdas}
+We first introduce a new expression:
+\begin{lstlisting}
+case class Lambda(params: List[ParamDef],
+                  retType: Option[TypeTree],
+                  body: Expr) extends Expr
+\end{lstlisting}
+This is similar to a \code{FunDef}, but without a \code{name} and with the return type optional.
+
+In parsing, we parse lambdas on the same precedence level as \code{if} and \code{match} expressions. This is because we want to avoid lambda bodies beginning immediately with let-expressions (\code{val}) but still be able to begin with \code{if} and \code{match} expressions.\footnote{Another note about parsing: to avoid the LL(1) nuisance with parsing the opening parenthesis and \code{$\Arr$}, the author opted to use backslash and \code{$\arr$} as delimiters, reminiscent of Haskell.}
+
+In name analysis, we introduce the lambda's formal parameters as new parameters and remove locals with clashing names. This shadows outer parameters/locals and gives the formal parameter preference during name lookup.
+
+No desugaring or lambda lifting is done. Mainly because the interpreter implementation is fairly straightforward once we use closure conversion, and \textit{SEAL} doesn't have a native, generic \code{Map} type to lookup free variables.\footnotemark
+
+\footnotetext{Technically, it should be possible to instead use a tuple to represent the environment, and assign each free variable an index in the tuple, but this is just much more tedious than the direct interpreter implementation. And remember, codegen and optimisations were thrown out the window.}
+
+To implement lambdas in the interpreter, we use closure conversion. As described in §\ref{sec:closure-convert}, we start by creating a new \code{FunctionValue} type which encapsulates the lambda and environment. Since this is interpreted, we diverge a bit from the theory: no \code{env} parameter is added to the lambda procedure itself.\footnote{Also note that the entire environment is copied, not just the free variables. For the interpreter, this is fine since we're reusing an otherwise immutable map. However, this may be a slight inefficiency for codegen and should be optimised to use a minimal mapping of free variables.}
+\begin{lstlisting}
+// New type!
+case class ClosureValue(proc: Lambda,
+                        env: Map[Identifier, Value])
+                        extends FunctionValue
+// ...
+def interpret(expr: Expr)
+    (implicit locals: Map[Identifier, Value]): Value = {
+  expr match {
+    // ...
+    case proc@Lambda(_, _, _) $\Arr$ // New!
+      ClosureValue(proc, locals)
+    case Call(e, args) $\Arr$
+      interpret(e) match
+        case TupleValue(xs) $\Arr$ // ...
+        case BuiltInFunctionValue(func) $\Arr$ // ...
+        // ...
+        case ClosureValue(proc, env) $\Arr$ // New!
+          interpret(proc.body)(env
+            ++ (proc.params zip (args map interpret))
+                .map((p, v) $\Arr$ p.name $\arr$ v))
+\end{lstlisting}
+And we're done!
