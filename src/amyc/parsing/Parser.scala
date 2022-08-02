@@ -12,31 +12,6 @@ import scallion._
 
 /**
  * 
- * LL(1) Grammar for Amy Expressions:
- * 
- * E0 ::= E1 | val ParamDef = E1; E0
- * E1 ::= E2 E1Rest | if (E0) { E0 } else { E0 }
- * E2 ::= E3 | E2 BinOp E3
- * E3 ::= UnaryOp E4
- * E4 ::= error(E0)
- *     | Id IdRest
- *     | ( bracketedExpr
- *     | OtherLiteral
- * 
- * E1Rest ::= epsilon | Match+
- * Match ::= match { MatchCase+ }
- * 
- * // Handles Id and Function calling
- * IdRest ::= epsilon
- *     | [.Id]? ( Args )
- * 
- * bracketedExpr ::= )
- *     | E0[,E0]* )
- * 
- */
-
-/**
- * 
  * Note [Tuple Calls]
  * ==================
  * 
@@ -109,24 +84,24 @@ object Parser extends Pipeline[Iterator[Token], Program]
 
   // An identifier.
   val identifier: Syntax[String] = accept(IdentifierKind) {
-    case IdentifierToken(name) => name
+    case IdentifierToken(name) => ???
   }
 
   // An identifier along with its position.
   val identifierPos: Syntax[(String, Position)] = accept(IdentifierKind) {
-    case id@IdentifierToken(name) => (name, id.position)
+    case id@IdentifierToken(name) => ???
   }
 
   lazy val abstractClassDef: Syntax[AbstractClassDef] = (kw("abstract") ~ kw("class") ~ identifier).map {
-    case kw ~ _ ~ id => AbstractClassDef(id).setPos(kw)
+    case kw ~ _ ~ id => ???
   }
 
   lazy val caseClassDef: Syntax[CaseClassDef] = (kw("case") ~ kw("class") ~ identifier ~ "(" ~ parameters ~ ")" ~ kw("extends") ~ identifier).map {
-    case kw ~ _ ~ name ~ _ ~ params ~ _ ~ _ ~ parent => CaseClassDef(name, params.map(_.tt), parent).setPos(kw)
+    case kw ~ _ ~ name ~ _ ~ params ~ _ ~ _ ~ parent => ???
   }
 
   lazy val funDef: Syntax[FunDef] = (kw("def") ~ identifier ~<~ "(" ~ parameters ~<~ ")" ~<~ ":" ~ typeTree ~<~ "=" ~<~ "{" ~ expr ~<~ "}").map {
-    case d ~ name ~ params ~ retType ~ body => FunDef(name, params, retType, body).setPos(d)
+    case d ~ name ~ params ~ retType ~ body => ???
   }
 
   // A definition within a module.
@@ -137,14 +112,14 @@ object Parser extends Pipeline[Iterator[Token], Program]
 
   // A parameter definition, i.e., an identifier along with the expected type.
   lazy val parameter: Syntax[ParamDef] = (identifier ~<~ ":" ~ typeTree).map {
-    case name ~ tt => ParamDef(name, tt)
+    case name ~ tt => ???
   }
 
   // lazy val mbTypedParameters: Syntax[List[ParamDef]] = repsep(mbTypedParameter, ",").map(_.toList)
 
   // lazy val mbTypedParameter: Syntax[ParamDef] = (identifier ~ opt(":" ~ typeTree)).map {
-  //   case name ~ None => ParamDef(name, None)
-  //   case name ~ Some(_ ~ tt) => ParamDef(name, Some(tt))
+  //   case name ~ None => ???
+  //   case name ~ Some(_ ~ tt) => ???
   // }
 
   // A type expression.
@@ -204,18 +179,13 @@ object Parser extends Pipeline[Iterator[Token], Program]
   // A built-in type (such as `Int`).
   val primitiveType: Syntax[TypeTree] = accept(PrimTypeKind) {
     case tk@PrimTypeToken(name) => TypeTree(name match {
-      case "Unit" => UnitType
-      case "Boolean" => BooleanType
-      case "Int" => IntType
-      case "String" => StringType
-      case _ => throw new java.lang.Error("Unexpected primitive type name: " + name)
+      case _ => ???
     }).setPos(tk)
   }
 
   // A user-defined type (such as `List`).
   val identifierType: Syntax[TypeTree] = (identifier ~ opt("." ~>~ identifier)).map {
-    case name ~ None => TypeTree(ClassType(QualifiedName(None, name)))
-    case module ~ Some(name) => TypeTree(ClassType(QualifiedName(Some(module), name)))
+    case _ => ???
   }
 
   // An expression. We break it into several layers (expr1, expr2, expr3, ...) in order to
@@ -227,11 +197,7 @@ object Parser extends Pipeline[Iterator[Token], Program]
     }
 
   lazy val valExpr: Syntax[Expr] =
-    recursive {
-      (kw("val") ~ parameter ~<~ "=" ~ expr1 ~<~ ";" ~ expr).map {
-        case vl ~ df ~ value ~ body => Let(df, value, body).setPos(vl)
-      }
-    }
+    ???
 
   lazy val lambda: Syntax[Lambda] =
     recursive {
@@ -286,44 +252,11 @@ object Parser extends Pipeline[Iterator[Token], Program]
   
   // Covers binary expressions.
   lazy val expr2: Syntax[Expr] =
-    recursive {
-      // Operands are higher-precedence expressions (unary expressions, identifiers, literals, errors, etc.).
-      // i.e. the next layer of expressions.
-      operators(expr3) (
-        // Highest precedence at the top.
-        op("*") | op("/") | op("%")   is LeftAssociative, // All these odd bois are left associative.
-        op("+") | op("-") | op("++")  is LeftAssociative,
-        op("<") | op("<=")            is LeftAssociative,
-        op("==")                      is LeftAssociative,
-        op("&&")                      is LeftAssociative,
-        op("||")                      is LeftAssociative
-      ) {
-        // Apply the operator.
-        case (l, op, r) =>
-          Map[String, (Expr, Expr) => Expr](
-            "+" -> Plus.apply,
-            "-" -> Minus.apply,
-            "*" -> Times.apply,
-            "/" -> Div.apply,
-            "%" -> Mod.apply,
-            "<" -> LessThan.apply,
-            "<=" -> LessEquals.apply,
-            "&&" -> And.apply,
-            "||" -> Or.apply,
-            "==" -> Equals.apply,
-            "++" -> Concat.apply,
-          )(op)(l, r).setPos(l)
-      }
-    }
+    ???
 
   // Unary operators.
   lazy val expr3: Syntax[Expr] =
-    recursive {
-      (opt(unaryOp) ~ expr4).map {
-        case None ~ expr4 => expr4
-        case Some(unaryFunc: (Expr => Expr)) ~ expr4 => unaryFunc(expr4)
-      }
-    }
+    ???
 
   // Unary operation. There are only two...
   val unaryOp: Syntax[Expr => Expr] = 
@@ -333,94 +266,33 @@ object Parser extends Pipeline[Iterator[Token], Program]
   // Everything else: error, literals, calls, identifiers.
   // These peeps are on the highest precedence.
   lazy val expr4: Syntax[Expr] =
-    recursive {
-      // Handle calls in both identifier and bracket expr cases.
-      // If it's a single call on an identifier, we want to register it as an identifier call.
-      error | identifierAndCalls | bracketedExprAndCalls | otherLiteral.up[Expr]
-    }
+    ???
 
   lazy val error: Syntax[Expr] =
-    recursive {
-      (kw("error") ~<~ "(" ~ expr ~<~ ")").map { case e ~ expr => Error(expr).setPos(e) }
-    }
+    ???
 
-  lazy val call: Syntax[List[Expr]] = recursive {
-    ("(" ~>~ repsep(expr, ",") ~<~ ")").map (_.toList)
-  }
+  lazy val call: Syntax[List[Expr]] = ???
 
   // A combined combinator for parsing stuff beginning with an identifier (either a variable identifier
   // or a call, possibly qualified).
-  lazy val identifierAndCalls: Syntax[Expr] = 
-    recursive {
-      // Left-factor identifier to make grammar LL(1).
-      val qualIdentifier = (identifierPos ~ opt("." ~>~ identifier)).map {
-        case (id, pos) ~ None => (QualifiedName(None, id), pos)
-        case (module, pos) ~ Some(name) => (QualifiedName(Some(module), name), pos)
-      }
-      
-      (qualIdentifier ~ many(call)).map {
-        case (qname, pos) ~ calls =>
-          calls.toList match {
-            case Nil => Variable(qname).setPos(pos) // No calls.
-            // case args::rest => rest.foldLeft(IdentifierCall(qname, args))(Call.apply).setPos(pos)
-            // TODO: setPos for Call
-            case args => args.foldLeft(Variable(qname).setPos(pos))(Call.apply).setPos(pos)
-          }
-      }
-    }
+  lazy val identifierAndCalls: Syntax[Expr] = ???
 
   // Left-factor the opening paren "(" to parse an unit literal, a tuple, or a subexpression.
-  lazy val bracketedExprAndCalls: Syntax[Expr] = {
-    // Value calls shouldn't be allowed on (unit) literals...
-    val unitLiteral: Syntax[UnitLiteral] = ")".map(_ => UnitLiteral())
-    // ...so they'll only be handled with tuples/subexprs
-    lazy val tupleOrSubExpr: Syntax[Expr] = recursive {
-      (rep1sep(expr, ",") ~<~ ")" ~ many(call)).map {
-        case exs ~ calls =>
-          val baseExpr = exs.toList match {
-            case Nil => throw new java.lang.Error("You shouldn't be here.")
-            case one::Nil => one // Singleton: directly unpack.
-            case many => Tuple(many) // Multiple expressions -> Tuple.
-          }
-          // TODO: setPos for valueCall
-          calls.foldLeft(baseExpr)(Call.apply)
-      }
-    }
-    ("(" ~ (unitLiteral.up[Expr] | tupleOrSubExpr)).map { case a ~ expr => expr.setPos(a) }
-  }
+  lazy val bracketedExprAndCalls: Syntax[Expr] = ???
 
   // A (non-unit) literal expression. Handles all other literals.
-  val otherLiteral: Syntax[Literal[_]] = accept(LiteralKind) {
-    case a@StringLitToken(s) => StringLiteral(s).setPos(a)
-    case a@IntLitToken(i) => IntLiteral(i).setPos(a)
-    case a@BoolLitToken(b) => BooleanLiteral(b).setPos(a)
-  }
+  val otherLiteral: Syntax[Literal[_]] = ???
 
   // A pattern as part of a match case.
-  lazy val pattern: Syntax[Pattern] = recursive {
-    literalPattern | wildPattern | idOrCaseClassPattern | bracketedPattern
-  }
+  lazy val pattern: Syntax[Pattern] = ???
 
   val literalPattern: Syntax[Pattern] = otherLiteral.map { case pat => LiteralPattern(pat).setPos(pat) }
 
   val wildPattern: Syntax[Pattern] = kw("_").map(_ => WildcardPattern())
 
-  lazy val idOrCaseClassPattern: Syntax[Pattern] = recursive {
-    // Left-factor the identifier. Similar to `identifierOrCall`.
-    (identifierPos ~ opt(opt("." ~>~ identifier) ~<~ "(" ~ repsep(pattern, ",") ~<~ ")")).map {
-      case (name, pos) ~ None => IdPattern(name).setPos(pos)
-      case (module, pos) ~ Some(Some(name) ~ pats) => CaseClassPattern(QualifiedName(Some(module), name), pats.toList).setPos(pos)
-      case (name, pos) ~ Some(None ~ pats) => CaseClassPattern(QualifiedName(None, name), pats.toList).setPos(pos)
-    }
-  }
+  lazy val idOrCaseClassPattern: Syntax[Pattern] = ???
 
-  lazy val bracketedPattern: Syntax[Pattern] = recursive {
-    val unit = ")".map(_ => LiteralPattern(UnitLiteral()))
-    lazy val tuple: Syntax[Pattern] = recursive {
-      (rep1sep(pattern, ",") ~<~ ")").map (ps => TuplePattern(ps.toList))
-    }
-    ("(" ~ (unit | tuple)).map { case br ~ pat => pat.setPos(br) }
-  }
+  lazy val bracketedPattern: Syntax[Pattern] = ???
 
 
   // Ensures the grammar is in LL(1)

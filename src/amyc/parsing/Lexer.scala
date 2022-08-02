@@ -85,40 +85,26 @@ object Lexer extends Pipeline[List[File], Iterator[Token]]
 
     // Integer literals.
     // Note that int literals will be unable to match -2147483648 (-2^31) due to issues with the grammar.
-    many1(elem(_.isDigit)) |> {
-      (cs, range) =>
-        try
-          IntLitToken(cs.mkString.toInt).setPos(range._1)
-        catch 
-          // Handle int overflows.
-          case err: NumberFormatException =>
-            ErrorToken("Int overflow: " + cs.mkString).setPos(range._1)
-    },
+    ???,
     
     // String literals
-    elem('"') ~ many(elem(x => x != '"' && x != '\n')) ~ elem('"') |> {
-      // Remove quotes.
-      (cs, range) => StringLitToken(cs.mkString.tail.init).setPos(range._1)
-    },
+    ???,
 
     // Delimiters and whitespace
-    word("=>") | word("->") | oneOf("(){}[]\\;.,:=") |> { (cs, range) => DelimiterToken(cs.mkString).setPos(range._1) },
-    oneOf(" \t\r\n") |> { (_, range) => SpaceToken().setPos(range._1) },
+    ???,
 
     // Single line comments
-    word("//") ~ many(elem(_ != '\n'))
-      |> { cs => CommentToken(cs.mkString("")) },
+    ???,
 
     // Multiline comments
     // NOTE: Amy does not support nested multi-line comments (e.g. `/* foo /* bar */ */`).
-    word("/*") ~ many(elem(_ != '*') | (many1(elem('*')) ~ elem(x => x != '*' && x != '/'))) ~ many1(elem('*')) ~ elem('/')
-      |> { cs => CommentToken(cs.mkString) },
+    ???,
     
     // Unclosed multi-line comments result in an ErrorToken.
-    word("/*") |> { (cs, range) => ErrorToken(s"unclosed multi-line comment: ${cs.mkString}").setPos(range._1) },
+    ???,
 
     // Any unrecognised characters.
-    any |> { (cs, range) => ErrorToken(cs.mkString).setPos(range._1) }
+    ???,
 
   ) onError {
     // We also emit ErrorTokens for Scallion-handled errors.

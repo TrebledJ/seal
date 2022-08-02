@@ -136,59 +136,22 @@ object Interpreter extends Pipeline[(Program, SymbolTable), Unit] {
         case Tuple(xs) => TupleValue(xs map interpret)
         case proc@Lambda(params, _, body) => ClosureValue(proc, locals)
 
-        case Plus(lhs, rhs) =>
-          IntValue(interpret(lhs).asInt + interpret(rhs).asInt)
-        case Minus(lhs, rhs) =>
-          IntValue(interpret(lhs).asInt - interpret(rhs).asInt)
-        case Times(lhs, rhs) =>
-          IntValue(interpret(lhs).asInt * interpret(rhs).asInt)
-        case Div(lhs, rhs) =>
-          val rval = interpret(rhs).asInt
-          if (rval == 0)
-            ctx.reporter.fatal(s"division by 0", expr)
-          else
-            IntValue(interpret(lhs).asInt / rval)
-            
-        case Mod(lhs, rhs) =>
-          val rval = interpret(rhs).asInt
-          if (rval == 0)
-            ctx.reporter.fatal(s"division by 0", expr)
-          else
-            IntValue(interpret(lhs).asInt % rval)
+        case Plus(lhs, rhs) => ???
+        case Minus(lhs, rhs) => ???
+        case Times(lhs, rhs) => ???
+        case Div(lhs, rhs) => ???
+        case Mod(lhs, rhs) => ???
 
-        case LessThan(lhs, rhs) =>
-          BooleanValue(interpret(lhs).asInt < interpret(rhs).asInt)
-        case LessEquals(lhs, rhs) =>
-          BooleanValue(interpret(lhs).asInt <= interpret(rhs).asInt)
-        case And(lhs, rhs) =>
-          BooleanValue(interpret(lhs).asBoolean && interpret(rhs).asBoolean)
-        case Or(lhs, rhs) =>
-          BooleanValue(interpret(lhs).asBoolean || interpret(rhs).asBoolean)
+        case LessThan(lhs, rhs) => ???
+        case LessEquals(lhs, rhs) => ???
+        case And(lhs, rhs) => ???
+        case Or(lhs, rhs) => ???
 
-        case Equals(lhs, rhs) =>
-          def valueEquals(val1: Value, val2: Value): Boolean = {
-            // Int, Bool, Unit: ValueEquality.
-            (val1, val2) match
-              case (IntValue(val1), IntValue(val2)) => val1 == val2
-              case (BooleanValue(val1), BooleanValue(val2)) => val1 == val2
-              case (UnitValue, UnitValue) => true // Well duh!
+        case Equals(lhs, rhs) => ???
 
-              // Check ReferenceEquality types: String, user-defined types.
-              case (StringValue(_), StringValue(_)) | (CaseClassValue(_, _), CaseClassValue(_, _)) =>
-                val1 eq val2
-
-              // Memberwise equality for tuples.
-              case (TupleValue(xs), TupleValue(ys)) =>
-                (xs zip ys).map((x, y) => valueEquals(x, y)).forall(_ == true)
-
-              case (_, _) => false // Everything else.
-          }
-          
-          BooleanValue(valueEquals(interpret(lhs), interpret(rhs)))
-
-        case Concat(lhs, rhs) => StringValue(interpret(lhs).asString + interpret(rhs).asString)
-        case Not(e) => BooleanValue(!interpret(e).asBoolean)
-        case Neg(e) => IntValue(-interpret(e).asInt)
+        case Concat(lhs, rhs) => ???
+        case Not(e) => ???
+        case Neg(e) => ???
 
         case Call(e, args) =>
           val argValues = args.map(interpret)
@@ -206,17 +169,11 @@ object Interpreter extends Pipeline[(Program, SymbolTable), Unit] {
             case _ => ctx.reporter.fatal("Typechecker-- Y U no work?!?", expr)
           }
 
-        case Sequence(e1, e2) => interpret(e1); interpret(e2)
+        case Sequence(e1, e2) => ???
 
-        case Let(df, value, body) =>
-          interpret(body)(locals + (df.name -> interpret(value))) // Pass on an updated map.
+        case Let(df, value, body) => ???
 
-        case Ite(cond, thenn, elze) =>
-          if (interpret(cond).asBoolean)
-            interpret(thenn)
-          else
-            interpret(elze)
-
+        case Ite(cond, thenn, elze) => ???
         case Match(scrut, cases) =>
           val evS = interpret(scrut)
 
